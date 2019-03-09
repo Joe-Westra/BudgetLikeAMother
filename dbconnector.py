@@ -23,11 +23,13 @@
 #  
 
 import mysql.connector
+import queue
 
 host = "localhost"
 user = "root"
 passwd = "AmanitaMuscaria"
 database = "BUDGET"
+TABLE_LIST = ['assignment','category','description_one','description_two','domain','investment','transaction','type']
 
 
 def getConnectionToMySQL():
@@ -71,17 +73,42 @@ def getCursorInsideDB():
     cnx = getConnectionToMySQL()
     cursor = getCursorFromConnection(cnx)
     return enterBudgetDB(cursor)
+    
+
+def dropTables(cursor):
+    q = queue.Queue()
+    for table in TABLE_LIST:
+        q.put(table)
+    while (not q.empty()):
+        tname = q.get()
+        try:
+            cursor.execute("DROP TABLE %s" % tname)
+            
+            #if forgiegn key constraints fail, just add the table to the queue again
+        except mysql.connector.Error as err:
+            print(err)
+            q.put(tname)
+    return True
+        
+        
+    
+
 
 def createTables(cursor):
-    #used to show potential errors encountered
+    # used to show potential errors encountered
     #cursor.execute("SHOW ENGINE INNODB STATUS")
     #print(cursor.fetchall())    
     
-    cursor.execute("DROP TABLE investment")
+    '''cursor.execute("DROP TABLE investment")
     cursor.execute("DROP TABLE transaction")
+    cursor.execute("DROP TABLE assignment")
+
     cursor.execute("DROP TABLE type")
     cursor.execute("DROP TABLE category")
     cursor.execute("DROP TABLE domain")
+    
+    cursor.execute("DROP TABLE description_one")
+    cursor.execute("DROP TABLE description_two")'''
 
     #create the tables for the transaction logging
     cursor.execute("CREATE TABLE domain (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
@@ -90,19 +117,12 @@ def createTables(cursor):
     cursor.execute("CREATE TABLE investment (id mediumint(5) unsigned AUTO_INCREMENT not null primary key, type mediumint(5) unsigned not null, amount FLOAT(5,2) not null, FOREIGN KEY(type) REFERENCES type(id) ON DELETE CASCADE ON UPDATE CASCADE)")
     #dateformat: YYYY-MM-DD
     cursor.execute("CREATE TABLE transaction (id mediumint(5) unsigned AUTO_INCREMENT primary key, date DATE not null, account VARCHAR(10) NOT NULL, amount FLOAT(5,2) not null, descr1 VARCHAR(80) NOT NULL, descr2 VARCHAR(80))")
-    
-    
-    #create the tables for mapping Transaction Description Names to categories and percentages
-    
-    
-    cursor.execute("DROP TABLE description_one")
-    cursor.execute("DROP TABLE description_two")
-    cursor.execute("DROP TABLE assignment")
  
-
+    #create the tables for mapping Transaction Description Names to categories and percentages
     cursor.execute("CREATE TABLE description_one (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
     cursor.execute("CREATE TABLE description_two (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
     cursor.execute("CREATE TABLE assignment (descrone VARCHAR(255)NOT NULL, descrtwo VARCHAR(255), percentage FLOAT(3,2) not null, type mediumint(5) unsigned, FOREIGN KEY(type) REFERENCES type(id) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY(descrone) REFERENCES description_one(name) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY(descrtwo) REFERENCES description_two(name) ON DELETE CASCADE ON UPDATE CASCADE, PRIMARY KEY (descrone, type))")
+    return cursor
 
 
 

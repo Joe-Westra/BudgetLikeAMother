@@ -32,7 +32,7 @@ class Test_dbconnector(unittest.TestCase):
     conn = getConnectionToMySQL()
     curs = getCursorFromConnection(conn)
     cursindb = enterBudgetDB(curs)
-    
+
 
     def test_connectToMySQL(self):
         cnx = getConnectionToMySQL()
@@ -61,11 +61,27 @@ class Test_dbconnector(unittest.TestCase):
         curs.close()
         conn.close()
     
+    def test_dropTables(self):
+        conn = getConnectionToMySQL()
+        curs = getCursorFromConnection(conn)
+        cursor = enterBudgetDB(curs)
+        
+        self.assertTrue(dropTables(curs))
+        
+        
     def test_createTables(self):
         conn = getConnectionToMySQL()
         curs = getCursorFromConnection(conn)
         cursor = enterBudgetDB(curs)
-        self.assertEqual(createTables(cursor), "table created")
+        cursor = createTables(cursor)
+        cursor.execute("SHOW TABLES")
+        tables = cursor.fetchall()
+        sqlTableList = ['assignment','category','description_one','description_two','domain','investment','transaction','type']
+        for name in tables:
+            self.assertTrue(name[0] in sqlTableList)
+        conn.close()
+        curs.close()
+        cursor.close()
         
     curs.close()
     cursindb.close()
