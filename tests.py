@@ -61,15 +61,15 @@ class Test_dbconnector(unittest.TestCase):
         curs.close()
         conn.close()
     
-    def test_dropTables(self):
+    '''def test_dropTables(self):
         conn = getConnectionToMySQL()
         curs = getCursorFromConnection(conn)
         cursor = enterBudgetDB(curs)
         
-        self.assertTrue(dropTables(curs))
+        self.assertTrue(dropTables(curs))'''
         
         
-    def test_createTables(self):
+    '''def test_createTables(self):
         conn = getConnectionToMySQL()
         curs = getCursorFromConnection(conn)
         cursor = enterBudgetDB(curs)
@@ -81,7 +81,67 @@ class Test_dbconnector(unittest.TestCase):
             self.assertTrue(name[0] in sqlTableList)
         conn.close()
         curs.close()
+        cursor.close()'''
+        
+    '''def test_addToDomain(self):
+        conn = getConnectionToMySQL()
+        curs = getCursorFromConnection(conn)
+        cursor = enterBudgetDB(curs)
+        cursor.execute("SHOW TABLES")
+        tables = cursor.fetchall()
+        print("TABLES    : " + str(tables))
+
+        addToDomain(cursor, "test")
+        cursor.execute("SELECT * FROM domain WHERE name = 'test'")
+        tables = cursor.fetchall()
+        print(tables)
+        self.assertFalse(tables == [])
+        
+        #clean up
+        cursor.execute("DELETE FROM domain WHERE name = 'test'")
+        conn.close()
+        curs.close()
+        cursor.close()'''
+        
+        
+        
+    def test_addNameElementToTable(self):
+        conn = getConnectionToMySQL()
+        curs = getCursorFromConnection(conn)
+        cursor = enterBudgetDB(curs)
+        table = "domain"
+        name = "test"
+        self.assertTrue(addNameElementToTable(cursor, table, name))
+        
+        
+        cursor.execute("SELECT * FROM %s WHERE name = '%s'" % (table, name))
+        tables = cursor.fetchall()
+        print(tables)
+        self.assertFalse(tables == [])
+        
+        #clean up
+        cursor.execute("DELETE FROM %s WHERE name = '%s'" % (table, name))
+        conn.close()
+        curs.close()
         cursor.close()
+        
+        
+    def test_isInDescOneTable(self):
+        conn = getConnectionToMySQL()
+        curs = getCursorFromConnection(conn)
+        cursor = enterBudgetDB(curs)
+        
+        # test where element does not exist
+        desc = "some_made_up_description"
+        self.assertFalse(isInDescOneTable(cursor, desc))
+        
+        table = "description_one"
+        name = "test test"
+        
+        # test where element does exist
+        addNameElementToTable(cursor, table, name)
+        self.assertTrue(isInDescOneTable(cursor, name))
+        
         
     curs.close()
     cursindb.close()

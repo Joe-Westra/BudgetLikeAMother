@@ -79,6 +79,7 @@ def dropTables(cursor):
     q = queue.Queue()
     for table in TABLE_LIST:
         q.put(table)
+        
     while (not q.empty()):
         tname = q.get()
         try:
@@ -88,9 +89,8 @@ def dropTables(cursor):
         except mysql.connector.Error as err:
             print(err)
             q.put(tname)
+            
     return True
-        
-        
     
 
 
@@ -99,17 +99,6 @@ def createTables(cursor):
     #cursor.execute("SHOW ENGINE INNODB STATUS")
     #print(cursor.fetchall())    
     
-    '''cursor.execute("DROP TABLE investment")
-    cursor.execute("DROP TABLE transaction")
-    cursor.execute("DROP TABLE assignment")
-
-    cursor.execute("DROP TABLE type")
-    cursor.execute("DROP TABLE category")
-    cursor.execute("DROP TABLE domain")
-    
-    cursor.execute("DROP TABLE description_one")
-    cursor.execute("DROP TABLE description_two")'''
-
     #create the tables for the transaction logging
     cursor.execute("CREATE TABLE domain (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
     cursor.execute("CREATE TABLE category (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
@@ -126,6 +115,34 @@ def createTables(cursor):
 
 
 
+def addNameElementToTable(cursor, table, name):
+    try:
+        cursor.execute("INSERT INTO %s VALUES ('%s')" % (table, name))
+        return True
+    except mysql.connector.Error as err:
+        print(err)
+        return False
+        
+        
+def addToDomain(cursor, name):
+    return addNameElementToTable(cursor, "domain", name)
+
+def addToCategory(cursor, name):
+    return addNameElementToTable(cursor, "category", name)
+    
+def elementIsInTable(cursor, table, field, element):
+    cursor.execute("SELECT * FROM %s WHERE %s = '%s'" % (table, field, element))
+    results = cursor.fetchall()
+    if (not results):
+        return False
+    return True
+
+
+def isInDescOneTable(cursor, desc):
+    return elementIsInTable(cursor, "description_one", "name", desc)
+
+def isInDescTwoTable(cursor, desc):
+    return elementIsInTable(cursor, "description_two", "name", desc)
 
 #https://dev.mysql.com/doc/connector-python/en/connector-python-example-ddl.html
 
