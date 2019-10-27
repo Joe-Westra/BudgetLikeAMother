@@ -60,6 +60,7 @@ class Test_dbconnector(unittest.TestCase):
         self.assertEqual(db[0], "BUDGET")
         curs.close()
         conn.close()
+
     
     '''def test_dropTables(self):
         conn = getConnectionToMySQL()
@@ -67,21 +68,21 @@ class Test_dbconnector(unittest.TestCase):
         cursor = enterBudgetDB(curs)
         
         self.assertTrue(dropTables(curs))'''
-        
-        
-    '''def test_createTables(self):
+
+
+    def test_createTables(self):
         conn = getConnectionToMySQL()
         curs = getCursorFromConnection(conn)
         cursor = enterBudgetDB(curs)
         cursor = createTables(cursor)
         cursor.execute("SHOW TABLES")
         tables = cursor.fetchall()
-        sqlTableList = ['assignment','category','description_one','description_two','domain','investment','transaction','type']
+        sqlTableList = ['assignment','category','description','domain','investment','transaction','type', 'expenditure', 'descs_to_ignore']
         for name in tables:
             self.assertTrue(name[0] in sqlTableList)
         conn.close()
         curs.close()
-        cursor.close()'''
+        cursor.close()
         
     '''def test_addToDomain(self):
         conn = getConnectionToMySQL()
@@ -111,7 +112,7 @@ class Test_dbconnector(unittest.TestCase):
         cursor = enterBudgetDB(curs)
         table = "domain"
         name = "test"
-        self.assertTrue(addNameElementToTable(cursor, table, name))
+        self.assertTrue(addNameElementToTable(table, name))
         
         
         cursor.execute("SELECT * FROM %s WHERE name = '%s'" % (table, name))
@@ -146,6 +147,12 @@ class Test_dbconnector(unittest.TestCase):
     curs.close()
     cursindb.close()
     conn.close()
+    
+    
+    
+class Test_main(unittest.TestCase):
+    def test_AddNewCategory(self):
+        self.assertTrue(False)
 
 if __name__ == '__main__':
     unittest.main()
