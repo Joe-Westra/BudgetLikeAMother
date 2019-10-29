@@ -198,7 +198,7 @@ def getShortHandVersionOfDesc(fullDesc):
 
 
 def formatDescriptionForMYSQL(description):
-    return description[0].strip('\'"') + " " + description[1].strip('\'"')
+    return (description[0].strip('\'"') + " " + description[1].strip('\'"')).strip()
    
 
 def isInDescTable(desc):
@@ -266,7 +266,8 @@ def getTypeID(category, domain):
         curs.execute("insert into type (domain, category) values ('%s', '%s')" % (domain, category))
         cnx.commit()
         curs.execute("SELECT id FROM type where domain = '%s' and category = '%s'" % (domain, category))
-    typeid = curs.fetchall()[0][0]
+        typeid = curs.fetchall()
+    typeid = typeid[0][0]
     print("returning typeid {}".format(typeid))
     return typeid
 
@@ -320,12 +321,13 @@ def makeSelection(tableName, description):
     print(selection)
     if selection == "ignore":
         # Whole name or just a subset?
-        nameToIgnore = getShortenedVersionForTable(description, "ignore")
-        print("Are you sure you want to ignore all future instances of '%s'?" % nameToIgnore)
+        #nameToIgnore = getShortenedVersionForTable(description, "ignore")
+        # This should be a shortened version already....
+        print("Are you sure you want to ignore all future instances of '%s'?" % description)#nameToIgnore)
         confirmation = input("y/n: ")
         affirmations = ["y", "yes"]
         if confirmation in affirmations:
-            addToIgnore(nameToIgnore)
+            addToIgnore(description)
             return "ignore"
         else:
             print("NOT added to ignore table, let's do this again...\n")
@@ -364,7 +366,7 @@ def getExpenditureID(date, account):
     print(expendID)
     if not expendID:
         addToExpenditure(date, account)
-        getExpenditureID(date, account)
+        return getExpenditureID(date, account)
     return expendID[0][0]
     
 def getInvestmentID(typeID, amount):
@@ -373,6 +375,7 @@ def getInvestmentID(typeID, amount):
     curs = enterBudgetDB(cursor)
     curs.execute("SELECT id FROM investment where type = '%s' and amount = '%s'" % (typeID, amount))
     investID = curs.fetchall()
+    print("adding type   {}    of amount   {}".format(typeID, amount))
     if not investID:
         addToinvestment(typeID, amount)
         return getInvestmentID(typeID, amount)
@@ -392,6 +395,7 @@ def addToExpenditure(date, account):
     cursor = getCursorFromConnection(cnx)
     curs = enterBudgetDB(cursor)
     curs.execute("insert into expenditure (date, account) values ('%s', '%s')" % (date, account))
+    cnx.commit()
 
 
 
@@ -400,6 +404,7 @@ def addToTransaction(expenditure, investment):
     cursor = getCursorFromConnection(cnx)
     curs = enterBudgetDB(cursor)
     curs.execute("insert into transaction (expenditure, investment) values ('%s', '%s')" % (expenditure, investment))
+    cnx.commit()
 
 
 def reformatDate(date):

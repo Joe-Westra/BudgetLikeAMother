@@ -25,8 +25,7 @@
 
 '''
 TODO:
-for some reason the amount being stored is       
-
+    -implement a way of re-structuring the designations after being entered into the db.
 
 '''
 
@@ -40,6 +39,7 @@ cnx = db.getConnectionToMySQL()
 cursor = db.getCursorFromConnection(cnx)
 curs = db.enterBudgetDB(cursor)
 
+#Get rid of all the data from each table by deleting and recreating each one.
 db.dropTables(curs)
 db.createTables(curs)
 
@@ -76,14 +76,14 @@ for line in f:
     # TODO: this isn't implemented at all yet
     #expendID = db.getExpenditureID(date, account)
 
-    
+    print("Charge of {} on {} for...".format(amt_cad, date))
     
     
     # This does NOT add it to the desc table
     description = db.getShortHandVersionOfDesc(fullDesc)
-# UP TO THIS POINT, EVERYTHING IS USING ONE LONE DESCRIPTION.
-# FROM HERE, description SHOULD BE THE ONLY DESCRIPTION USED.
-# THIS IS BEING STORED IN THE "description" DATABASE.        
+    # UP TO THIS POINT, EVERYTHING IS USING ONE LONE DESCRIPTION.
+    # FROM HERE, description SHOULD BE THE ONLY DESCRIPTION USED.
+    # THIS IS BEING STORED IN THE "description" DATABASE.        
     
     ass = db.isInAssignments(description)
     print("DFGDGFDFGD")
@@ -120,11 +120,12 @@ for line in f:
             db.addToAssignments(description, typeID, percentage)
 
             #add investment
-            print(amt_cad)
             amount = round((percentage * .01) * amt_cad, 2)
-            print(amt_cad)
             investID = db.getInvestmentID(typeID, amount)
+            #print("investID: {}".format(investID))
             
+            
+            expendID = db.getExpenditureID(date, account)
             #add transaction
             db.addToTransaction(expendID, investID)
 
