@@ -22,28 +22,90 @@
 #  
 #  
 
+
+
+
+'''
+JOE: you have abandoned this halfway through improving the db connectivity aspect.
+Your aim was to remove all the redundant "connect to database" lines within each
+method by creating the DBConnection class.  Your current aim is to migrate.
+'''
+
 import mysql.connector
 import queue
+import errno
+import os
+from pathlib import Path
 
-host = "localhost"
-user = "root"
-passwd = "AmanitaMuscaria"
 database = "BUDGET"
 TABLE_LIST = ['assignment','category','description','domain','investment','transaction','type', 'expenditure', 'descs_to_ignore']
 curs = ""
 
 
-def getConnectionToMySQL():
-    mydb = mysql.connector.connect(
-    host = host,
-    user = user,
-    passwd = passwd
-    )
-    return mydb
+class DBConnection:
+    """
+    A convenience class to be used as an active MySQL DB connection.
 
-def getCursorFromConnection(db):
-    return db.cursor()
+    This class replaces the need to create multiple DB connections within
+    separate methods
 
+    """
+
+    # Dict to hold DB login credentials
+    creds = {}
+    curs = cnx = cursor = None
+    
+    def getCredentials(self):
+        '''
+        Can throw file not found exception.
+        '''
+        file = open(Path.cwd() / 'resources' / 'credentials')
+        for line in file:
+            # authentication parameters are stored in 'pass=1234' format
+            k, v = line.strip().split("=")
+            self.creds[k] = v
+
+    def enterBudgetDB(self):
+        try:
+            self.cursor.execute("USE {}".format(database))
+            return self.cursor
+        except mysql.connector.Error as err:
+            print("Database {} does not exist.".format(database))
+            print(err)
+            return None
+            
+            if err == mysql.connector.errorcode.ER_BAD_DB_ERROR:
+                createDatabase(cursor)
+                print("Database {} created".format(database))
+                enterBudgetDB()
+            else:
+                print(err)
+                cursor.close()
+
+
+    def __init__(self):
+        if not self.creds:
+            self.getCredentials()
+        self.cnx = mysql.connector.connect(**self.creds)
+        self.cursor = self.cnx.cursor()
+        self.curs = self.enterBudgetDB()
+        
+    
+    
+    
+    def __enter__(self):
+        if not self.creds:
+            self.getCredentials()
+        self.cnx = mysql.connector.connect(**self.creds)
+        self.cursor = self.cnx.cursor()
+        self.curs = self.enterBudgetDB()
+        return self
+    
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cnx.close()
+
+    
 def createDatabase(cursor):
     try:
         cursor.execute(
@@ -67,11 +129,10 @@ def enterBudgetDB(cursor):
         else:
             print(err)
             cursor.close()
-            # exit(1)
 
 def getCursorInsideDB():
     cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
+    cursor = cnx.cursor()
     curs = enterBudgetDB(cursor)
     return curs
     
@@ -86,7 +147,10 @@ def dropTables(cursor):
         try:
             cursor.execute("DROP TABLE %s" % tname)
             
-            #if forgiegn key constraints fail, just add the table to the queue again
+            # Forgeign key constraints may fail if dependent tables are
+            # not dropped first.  This can be remedied by adding the
+            # undroppable table table to the queue again, for iterative
+            # removal.
         except mysql.connector.Error as err:
             print(err)
             q.put(tname)
@@ -118,16 +182,14 @@ def createTables(cursor):
 
 
 def addNameElementToTable(table, name):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    try:
-        curs.execute('INSERT INTO %s  VALUES ("%s")' % (table, name))
-        cnx.commit()
-        return True
-    except mysql.connector.Error as err:
-        print(err)
-        return False
+    with DBConnection() as dbcnx:
+        try:
+            dbcnx.curs.execute('INSERT INTO %s  VALUES ("%s")' % (table, name))
+            dbcnx.cnx.commit()
+            return True
+        except mysql.connector.Error as err:
+            print(err)
+            return False
         
         
 def addToDomain(name):
@@ -144,43 +206,43 @@ def addToDescription(name):
 
     
 def elementIsInTable(table, field, element):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    curs.execute("SELECT * FROM %s WHERE %s = '%s'" % (table, field, element))
-    results = cursor.fetchall()
-    if (not results):
-        return False
-    return True
+    with DBConnection() as dbcnx:
+        dbcnx.curs.execute("SELECT * FROM %s WHERE %s = '%s'" % (table, field, element))
+        results = dbcnx.cursor.fetchall()
+        if (not results):
+            return False
+        return True
 
 def isInDescriptionTable(description):
     return elementIsInTable("description", "name", description)
 
 def isInAssignments(description):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    curs.execute("SELECT percentage, type FROM assignment where descr = '%s'" % (description))
-    results = cursor.fetchall()
-    print(results)
-    return results
-'''    if results:
+    with DBConnection() as dbcnx:
+        dbcnx.curs.execute("SELECT percentage, type FROM assignment where descr = '%s'" % (description))
+        results = dbcnx.cursor.fetchall()
+        print("printing result set for isinassignments")
+        print(results)
+        print("printing done")
         return results
-    return False
-'''
 
 def shortHandVersionInTable(element, tableName):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    curs.execute("SELECT * FROM  {}".format(tableName))
-    results = cursor.fetchall()
-    for r in results:
-        cleanedDesc = r[0]
-        if cleanedDesc in element:
-            print("{} entry in {} caught {}".format(cleanedDesc, tableName, element))
-            return cleanedDesc
-    return False
+    '''
+    Searches for truncated version of the charge name within the database
+    '''
+    with DBConnection() as dbcnx:
+        dbcnx.curs.execute("SELECT * FROM  {}".format(tableName))
+        results = dbcnx.cursor.fetchall()
+        for r in results:
+            #print("RESULT SET")
+            #print(r)
+            #print("TABLE NAME = %s" % tableName)
+            cleanedDesc = r[0]
+            if cleanedDesc and cleanedDesc in element:
+                #print("Cleaned desc = %s" % cleanedDesc)
+                #print("element = %s" % element)
+                print("{} entry in {} caught {}".format(cleanedDesc, tableName, element))
+                return cleanedDesc
+        return False
 
 def elementIsInIgnoreTable(element):
     return(shortHandVersionInTable(element, "descs_to_ignore"))
@@ -206,19 +268,23 @@ def isInDescTable(desc):
 
     
 def getAllElements(table):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    curs.execute("SELECT * FROM %s" % table)
-    results = cursor.fetchall()
-    return results
+    with DBConnection() as dbcnx:
+        dbcnx.curs.execute("SELECT * FROM %s" % table)
+        results = dbcnx.cursor.fetchall()
+        return results
 
 def getPercentage(desc_one, domain, category, maximumPercentageAssignable):
-    percentage = int(input("\nWhat percentage of a %s purchase is categorized as %s %s?  " % (desc_one, domain, category)))
+    percentage = input("\nWhat percentage of a %s purchase is categorized as %s %s?  " % (desc_one, domain, category))
+    
+    try:
+        percentage = int(percentage)
+    except:
+        print("Invalid entry, try again")
+        return getPercentage(desc_one, domain, category, maximumPercentageAssignable)
 
     #don't assign more than 100% combined
     if percentage > maximumPercentageAssignable:
-        print("That value is above the maximum percentage left to assign.  Try again\n\n")
+        print("That value is above the maximum percentage left to assign (%d).  Try again\n\n" % maximumPercentageAssignable)
         return getPercentage(desc_one, domain, category, maximumPercentageAssignable)
     return percentage
 
@@ -255,21 +321,19 @@ def mapDescriptionToTypeID(descriptions, maximumPercentageAssignable):
     into the DB>  TypeID is incrementing properly.  THIS IS NEXT
 '''
 def getTypeID(category, domain):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    curs.execute("SELECT id FROM type where domain = '%s' and category = '%s'" % (domain, category))
-    typeid = curs.fetchall()
-    print("first pass for typeid yields: {}".format(typeid))
-    if (not typeid):
-        print("no typeid found, so attempting insert")
-        curs.execute("insert into type (domain, category) values ('%s', '%s')" % (domain, category))
-        cnx.commit()
-        curs.execute("SELECT id FROM type where domain = '%s' and category = '%s'" % (domain, category))
-        typeid = curs.fetchall()
-    typeid = typeid[0][0]
-    print("returning typeid {}".format(typeid))
-    return typeid
+    with DBConnection() as dbcnx:
+        dbcnx.curs.execute("SELECT id FROM type where domain = '%s' and category = '%s'" % (domain, category))
+        typeid = dbcnx.curs.fetchall()
+        print("first pass for typeid yields: {}".format(typeid))
+        if (not typeid):
+            print("no typeid found, so attempting insert")
+            dbcnx.curs.execute("insert into type (domain, category) values ('%s', '%s')" % (domain, category))
+            dbcnx.cnx.commit()
+            dbcnx.curs.execute("SELECT id FROM type where domain = '%s' and category = '%s'" % (domain, category))
+            typeid = dbcnx.curs.fetchall()
+        typeid = typeid[0][0]
+        print("returning typeid {}".format(typeid))
+        return typeid
 
 def chooseDomain(descriptions):
     return makeSelection("domain", descriptions)
@@ -346,65 +410,54 @@ def makeSelection(tableName, description):
     it doesn't exist.
 '''
 def addToAssignments(description, typeID, percentage):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    percentage *= .01
-    curs.execute("insert into assignment (descr, type, percentage) values ('%s', '%s', '%s')" % (description, typeID, percentage))
-    cnx.commit()
-    curs.execute("SELECT id FROM assignment where descr = '%s' and type = '%s' and percentage = %s" % (description, typeID, percentage))
-    assID = curs.fetchall()[0][0]
-    return assID
+    with DBConnection() as dbcnx:
+        percentage *= .01
+        dbcnx.curs.execute("insert into assignment (descr, type, percentage) values ('%s', '%s', '%s')" % (description, typeID, percentage))
+        dbcnx.cnx.commit()
+        dbcnx.curs.execute("SELECT id FROM assignment where descr = '%s' and type = '%s' and percentage = %s" % (description, typeID, percentage))
+        assID = dbcnx.curs.fetchall()[0][0]
+        return assID
 
 def getExpenditureID(date, account):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    curs.execute("SELECT id FROM expenditure where date = '%s' and account = '%s'" % (date, account))
-    expendID = curs.fetchall()
-    print('expendid')
-    print(expendID)
-    if not expendID:
-        addToExpenditure(date, account)
-        return getExpenditureID(date, account)
-    return expendID[0][0]
+    with DBConnection() as dbcnx:
+        dbcnx.curs.execute("SELECT id FROM expenditure where date = '%s' and account = '%s'" % (date, account))
+        expendID = dbcnx.curs.fetchall()
+        #Scaffolding
+        print('finding the expendid')
+        print(expendID)
+        if not expendID:
+            addToExpenditure(date, account)
+            return getExpenditureID(date, account)
+        return expendID[0][0]
     
 def getInvestmentID(typeID, amount):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    curs.execute("SELECT id FROM investment where type = '%s' and amount = '%s'" % (typeID, amount))
-    investID = curs.fetchall()
-    print("adding type   {}    of amount   {}".format(typeID, amount))
-    if not investID:
-        addToinvestment(typeID, amount)
-        return getInvestmentID(typeID, amount)
-    return investID[0][0]
+    with DBConnection() as dbcnx:
+        dbcnx.curs.execute("SELECT id FROM investment where type = '%s' and amount = '%s'" % (typeID, amount))
+        investID = dbcnx.curs.fetchall()
+        print("adding type   {}    of amount   {}".format(typeID, amount))
+        if not investID:
+            addToinvestment(typeID, amount)
+            return getInvestmentID(typeID, amount)
+        return investID[0][0]
 
 def addToinvestment(typeID, amount):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    print("type:{}    amount:{}".format(typeID, amount))
-    curs.execute("insert into investment (type, amount) values ('%s', '%s')" % (typeID, amount))
-    cnx.commit()
+    with DBConnection() as dbcnx:
+        print("type:{}    amount:{}".format(typeID, amount))
+        dbcnx.curs.execute("insert into investment (type, amount) values ('%s', '%s')" % (typeID, amount))
+        dbcnx.cnx.commit()
 
 
 def addToExpenditure(date, account):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    curs.execute("insert into expenditure (date, account) values ('%s', '%s')" % (date, account))
-    cnx.commit()
+    with DBConnection() as dbcnx:
+        dbcnx.curs.execute("insert into expenditure (date, account) values ('%s', '%s')" % (date, account))
+        dbcnx.cnx.commit()
 
 
 
 def addToTransaction(expenditure, investment):
-    cnx = getConnectionToMySQL()
-    cursor = getCursorFromConnection(cnx)
-    curs = enterBudgetDB(cursor)
-    curs.execute("insert into transaction (expenditure, investment) values ('%s', '%s')" % (expenditure, investment))
-    cnx.commit()
+    with DBConnection() as dbcnx:
+        dbcnx.curs.execute("insert into transaction (expenditure, investment) values ('%s', '%s')" % (expenditure, investment))
+        dbcnx.cnx.commit()
 
 
 def reformatDate(date):

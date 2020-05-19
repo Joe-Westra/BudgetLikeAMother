@@ -22,10 +22,15 @@
 #  
 #  
 
+from pathlib import Path
 
 '''
 TODO:
     -implement a way of re-structuring the designations after being entered into the db.
+    -some categorizations should be hotkeyed (ie a cafe might be classified as 80% luxury and 20% battery charging)
+        -List the options from the 'types' table which is a mixture of category and domain
+            -This won't list classicifcations that are divided between multiple 'types'
+    
 
 '''
 
@@ -35,15 +40,18 @@ import dbconnector as db
 
 CURRENT_EXCHANGE_RATE = 1.32
 
-cnx = db.getConnectionToMySQL()
-cursor = db.getCursorFromConnection(cnx)
-curs = db.enterBudgetDB(cursor)
+dbcnx = db.DBConnection()
+#cnx = db.getConnectionToMySQL()
+#cursor = db.getCursorFromConnection(cnx)
+#curs = db.enterBudgetDB(cursor)
 
 #Get rid of all the data from each table by deleting and recreating each one.
-db.dropTables(curs)
-db.createTables(curs)
+#db.dropTables(curs)
+#db.createTables(curs)
 
-f = open("test.csv", "r")
+#f = open("test.csv", "r")
+f = open(Path.cwd() / 'reports' / 'test.csv', "r")
+
 skippedFirstLine = False
 
 for line in f:
@@ -64,7 +72,7 @@ for line in f:
         amt_cad = float(amt_cad)
     fullDesc = db.formatDescriptionForMYSQL([desc_one, desc_two])
     
-    #debits are denoted as negative values, so switch this for the script
+    #debits are denoted as negative values, so switch this
     amt_cad *= -1
     
     
@@ -86,11 +94,9 @@ for line in f:
     # THIS IS BEING STORED IN THE "description" DATABASE.        
     
     ass = db.isInAssignments(description)
-    print("DFGDGFDFGD")
-    print(ass)
 
     if ass:
-        #TODO: Add to assignments
+        #TODO: Add to assignments!!!!!!!
         print("Would start creating transactions as there are assignments found")
         
     if not db.isInDescriptionTable(description):
@@ -108,14 +114,14 @@ for line in f:
                 continue
             else:
                 typeID, percentage = res
-            print("typeid: {}\nPerc: {}".format(typeID, percentage))
+            #print("typeid: {}\nPerc: {}".format(typeID, percentage))
             #This means to
             assignments.update({typeID: percentage})
             percentageLeftToAssign -= percentage
         assignmentIDs = []
         for typeID, percentage in assignments.items():
             #Add to assignments table
-            print("Desc: {},  TypeID: {},  Percentage: {}".format(description, typeID, percentage))
+            #print("Desc: {},  TypeID: {},  Percentage: {}".format(description, typeID, percentage))
             
             db.addToAssignments(description, typeID, percentage)
 
@@ -129,6 +135,4 @@ for line in f:
             #add transaction
             db.addToTransaction(expendID, investID)
 
- 
-    
- 
+print("Done!")
