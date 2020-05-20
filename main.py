@@ -38,7 +38,7 @@ TODO:
 
 import dbconnector as db
 
-CURRENT_EXCHANGE_RATE = 1.32
+CURRENT_EXCHANGE_RATE = 1.40
 
 dbcnx = db.DBConnection()
 #cnx = db.getConnectionToMySQL()
@@ -46,11 +46,10 @@ dbcnx = db.DBConnection()
 #curs = db.enterBudgetDB(cursor)
 
 #Get rid of all the data from each table by deleting and recreating each one.
-#db.dropTables(curs)
-#db.createTables(curs)
+#db.dropTables()
+#db.createTables()
 
-#f = open("test.csv", "r")
-f = open(Path.cwd() / 'reports' / 'test.csv', "r")
+f = open(Path.cwd() / 'reports' / '20200518_allExpenditures.csv', "r")
 
 skippedFirstLine = False
 
@@ -78,7 +77,7 @@ for line in f:
     
 
     if db.elementIsInIgnoreTable(fullDesc):
-        print("{} in ignore table".format(fullDesc))
+        print("'{}' is in ignore table".format(fullDesc))
         continue
 
     # TODO: this isn't implemented at all yet
@@ -97,7 +96,8 @@ for line in f:
 
     if ass:
         #TODO: Add to assignments!!!!!!!
-        print("Would start creating transactions as there are assignments found")
+        print("************Would start creating transactions as there are assignments found.  Printing 'assignments' value...")
+        print(ass)
         
     if not db.isInDescriptionTable(description):
         #add it to the description table

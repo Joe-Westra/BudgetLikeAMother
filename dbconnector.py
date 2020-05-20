@@ -137,47 +137,48 @@ def getCursorInsideDB():
     return curs
     
 
-def dropTables(cursor):
-    q = queue.Queue()
-    for table in TABLE_LIST:
-        q.put(table)
+def dropTables():
+    with DBConnection() as dbcnx:
+        q = queue.Queue()
+        for table in TABLE_LIST:
+            q.put(table)
+            
+        while (not q.empty()):
+            tname = q.get()
+            try:
+                dbcnx.curs.execute("DROP TABLE %s" % tname)
+                
+                # Forgeign key constraints may fail if dependent tables are
+                # not dropped first.  This can be remedied by adding the
+                # undroppable table table to the queue again, for iterative
+                # removal.
+            except mysql.connector.Error as err:
+                print(err)
+                q.put(tname)
+                
+        return True
+    
+
+
+def createTables():
+    with DBConnection() as dbcnx:
+
+        # used to show potential errors encountered
+        #cursor.execute("SHOW ENGINE INNODB STATUS")
+        #print(cursor.fetchall())    
         
-    while (not q.empty()):
-        tname = q.get()
-        try:
-            cursor.execute("DROP TABLE %s" % tname)
-            
-            # Forgeign key constraints may fail if dependent tables are
-            # not dropped first.  This can be remedied by adding the
-            # undroppable table table to the queue again, for iterative
-            # removal.
-        except mysql.connector.Error as err:
-            print(err)
-            q.put(tname)
-            
-    return True
-    
-
-
-def createTables(cursor):
-    # used to show potential errors encountered
-    #cursor.execute("SHOW ENGINE INNODB STATUS")
-    #print(cursor.fetchall())    
-    
-    #create the tables for the transaction logging
-    cursor.execute("CREATE TABLE domain (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
-    cursor.execute("CREATE TABLE category (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
-    cursor.execute("CREATE TABLE type (id mediumint(5) unsigned AUTO_INCREMENT not null primary key, category VARCHAR(255) not null, domain VARCHAR(255) not null,  FOREIGN KEY(category) REFERENCES category(name) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY(domain) REFERENCES domain(name) ON DELETE CASCADE ON UPDATE CASCADE)")
-    cursor.execute("CREATE TABLE investment (id mediumint(5) unsigned AUTO_INCREMENT not null primary key, type mediumint(5) unsigned not null, amount DECIMAL(7,2) not null, FOREIGN KEY(type) REFERENCES type(id) ON DELETE CASCADE ON UPDATE CASCADE)")
-    cursor.execute("CREATE TABLE expenditure (id mediumint(5) unsigned AUTO_INCREMENT primary key, date DATE not null, account VARCHAR(10) NOT NULL)")
-    cursor.execute("CREATE TABLE transaction (id mediumint(5) unsigned AUTO_INCREMENT primary key, expenditure mediumint(5) unsigned NOT NULL, investment mediumint(5) unsigned NOT NULL, FOREIGN KEY(expenditure) REFERENCES expenditure(id) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY(investment) REFERENCES investment(id) ON DELETE CASCADE ON UPDATE CASCADE)")
- 
-    #create the tables for mapping Transaction Description Names to categories and percentages
-    cursor.execute("CREATE TABLE description (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
-    cursor.execute("CREATE TABLE descs_to_ignore (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
-    cursor.execute("CREATE TABLE assignment (id mediumint(5) unsigned AUTO_INCREMENT primary key, descr VARCHAR(255)NOT NULL, percentage FLOAT(3,2) not null, type mediumint(5) unsigned, FOREIGN KEY(type) REFERENCES type(id) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY(descr) REFERENCES description(name) ON DELETE CASCADE ON UPDATE CASCADE)")
-    
-    return cursor
+        #create the tables for the transaction logging
+        dbcnx.curs.execute("CREATE TABLE domain (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
+        dbcnx.curs.execute("CREATE TABLE category (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
+        dbcnx.curs.execute("CREATE TABLE type (id mediumint(5) unsigned AUTO_INCREMENT not null primary key, category VARCHAR(255) not null, domain VARCHAR(255) not null, FOREIGN KEY(category) REFERENCES category(name) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY(domain) REFERENCES domain(name) ON DELETE CASCADE ON UPDATE CASCADE)")
+        dbcnx.curs.execute("CREATE TABLE investment (id mediumint(5) unsigned AUTO_INCREMENT not null primary key, type mediumint(5) unsigned not null, amount DECIMAL(7,2) not null, FOREIGN KEY(type) REFERENCES type(id) ON DELETE CASCADE ON UPDATE CASCADE)")
+        dbcnx.curs.execute("CREATE TABLE expenditure (id mediumint(5) unsigned AUTO_INCREMENT primary key, date DATE not null, account VARCHAR(10) NOT NULL)")
+        dbcnx.curs.execute("CREATE TABLE transaction (id mediumint(5) unsigned AUTO_INCREMENT primary key, expenditure mediumint(5) unsigned NOT NULL, investment mediumint(5) unsigned NOT NULL, FOREIGN KEY(expenditure) REFERENCES expenditure(id) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY(investment) REFERENCES investment(id) ON DELETE CASCADE ON UPDATE CASCADE)")
+     
+        #create the tables for mapping Transaction Description Names to categories and percentages
+        dbcnx.curs.execute("CREATE TABLE description (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
+        dbcnx.curs.execute("CREATE TABLE descs_to_ignore (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
+        dbcnx.curs.execute("CREATE TABLE assignment (id mediumint(5) unsigned AUTO_INCREMENT primary key, descr VARCHAR(255)NOT NULL, percentage FLOAT(3,2) not null, type mediumint(5) unsigned, FOREIGN KEY(type) REFERENCES type(id) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY(descr) REFERENCES description(name) ON DELETE CASCADE ON UPDATE CASCADE)")
 
 
 

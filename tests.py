@@ -62,12 +62,12 @@ class Test_dbconnector(unittest.TestCase):
         conn.close()
 
     
-    '''def test_dropTables(self):
+    def test_dropTables(self):
         conn = getConnectionToMySQL()
         curs = getCursorFromConnection(conn)
         cursor = enterBudgetDB(curs)
         
-        self.assertTrue(dropTables(curs))'''
+        self.assertTrue(dropTables(curs))
 
 
     def test_createTables(self):
