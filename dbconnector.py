@@ -226,6 +226,7 @@ def isInAssignments(description):
         print("printing done")
         return results
 
+
 def shortHandVersionInTable(element, tableName):
     '''
     Searches for truncated version of the charge name within the database
@@ -234,9 +235,6 @@ def shortHandVersionInTable(element, tableName):
         dbcnx.curs.execute("SELECT * FROM  {}".format(tableName))
         results = dbcnx.cursor.fetchall()
         for r in results:
-            #print("RESULT SET")
-            #print(r)
-            #print("TABLE NAME = %s" % tableName)
             cleanedDesc = r[0]
             if cleanedDesc and cleanedDesc in element:
                 #print("Cleaned desc = %s" % cleanedDesc)
@@ -261,7 +259,10 @@ def getShortHandVersionOfDesc(fullDesc):
 
 
 def formatDescriptionForMYSQL(description):
-    return (description[0].strip('\'"') + " " + description[1].strip('\'"')).strip()
+    formatted = ''
+    for name in description:
+        formatted += name.strip('\'"').replace("'","").replace('"','') + " "
+    return formatted.strip()
    
 
 def isInDescTable(desc):

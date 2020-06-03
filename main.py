@@ -26,12 +26,13 @@ from pathlib import Path
 
 '''
 TODO:
-    -implement a way of re-structuring the designations after being entered into the db.
-    -some categorizations should be hotkeyed (ie a cafe might be classified as 80% luxury and 20% battery charging)
-        -List the options from the 'types' table which is a mixture of category and domain
-            -This won't list classicifcations that are divided between multiple 'types'
-    
-
+    -Implement a way of re-structuring the designations after being entered into the db.
+    -Add a "back" option.  This would require removing things from the database at certain points...
+    -Web interface that includes
+        -login information
+        -an "info" bar with google results to provide context to the sometimes obscure names
+    -Add interface for choosing the desired files for budgeting
+    -Determine the current exchange rate
 '''
 
 
@@ -41,9 +42,6 @@ import dbconnector as db
 CURRENT_EXCHANGE_RATE = 1.40
 
 dbcnx = db.DBConnection()
-#cnx = db.getConnectionToMySQL()
-#cursor = db.getCursorFromConnection(cnx)
-#curs = db.enterBudgetDB(cursor)
 
 #Get rid of all the data from each table by deleting and recreating each one.
 #db.dropTables()
