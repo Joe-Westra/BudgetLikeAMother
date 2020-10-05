@@ -2,33 +2,33 @@
 # -*- coding: utf-8 -*-
 #
 #  dbconnector.py
-#  
+#
 #  Copyright 2019 Joe Westra <me@joewestra.ca>
-#  
+#
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation; either version 2 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  This program is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
-#  
-#  
+#
+#
 
 
 
 
 '''
-JOE: you have abandoned this halfway through improving the db connectivity aspect.
-Your aim was to remove all the redundant "connect to database" lines within each
-method by creating the DBConnection class.  Your current aim is to migrate.
+TODO:
+    -refactor tests to accomodate the new DBConnection class.
+
 '''
 
 import mysql.connector
@@ -37,7 +37,6 @@ import errno
 import os
 from pathlib import Path
 
-database = "BUDGET"
 TABLE_LIST = ['assignment','category','description','domain','investment','transaction','type', 'expenditure', 'descs_to_ignore']
 curs = ""
 
@@ -47,16 +46,22 @@ class DBConnection:
     A convenience class to be used as an active MySQL DB connection.
 
     This class replaces the need to create multiple DB connections within
-    separate methods
+    separate methods.
 
     """
 
     # Dict to hold DB login credentials
     creds = {}
+
+    # Mysql connection variables
     curs = cnx = cursor = None
-    
+    database = "BUDGET"
+
+
     def getCredentials(self):
         '''
+        Opens plain test file at ./resoures/credentials and parses authentication
+        parameters; one key=value combination per line.
         Can throw file not found exception.
         '''
         file = open(Path.cwd() / 'resources' / 'credentials')
@@ -66,21 +71,24 @@ class DBConnection:
             self.creds[k] = v
 
     def enterBudgetDB(self):
+        '''
+            Attempts to enter the BUDGET database.  Will create
+            the database if it does not exist.
+        '''
         try:
-            self.cursor.execute("USE {}".format(database))
+            self.cursor.execute("USE {}".format(self.database))
             return self.cursor
         except mysql.connector.Error as err:
-            print("Database {} does not exist.".format(database))
+            print("Database {} does not exist.".format(self.database))
             print(err)
-            return None
             
-            if err == mysql.connector.errorcode.ER_BAD_DB_ERROR:
-                createDatabase(cursor)
-                print("Database {} created".format(database))
-                enterBudgetDB()
+            if err.errno == 1049:
+                print("this is being called")
+                self.createDatabase()
+                return self.enterBudgetDB()
             else:
                 print(err)
-                cursor.close()
+                return None
 
 
     def __init__(self):
@@ -89,10 +97,10 @@ class DBConnection:
         self.cnx = mysql.connector.connect(**self.creds)
         self.cursor = self.cnx.cursor()
         self.curs = self.enterBudgetDB()
-        
-    
-    
-    
+
+
+
+
     def __enter__(self):
         if not self.creds:
             self.getCredentials()
@@ -100,54 +108,36 @@ class DBConnection:
         self.cursor = self.cnx.cursor()
         self.curs = self.enterBudgetDB()
         return self
-    
-    
+
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cnx.close()
 
-    
-def createDatabase(cursor):
-    try:
-        cursor.execute(
-        "CREATE DATABASE {} DEFAULT CHARACTER SET 'utf8'".format(database))
-        cursor.fetchall()
-    except mysql.connector.Error as err:
-        print("Failed creating database {}".format(database))
-        cursor.close()
 
-def enterBudgetDB(cursor):
-    try:
-        cursor.execute("USE {}".format(database))
-        # cursor.fetchall()
-        return cursor
-    except mysql.connector.Error as err:
-        print("Database {} does not exist.".format(database))
-        if err == mysql.connector.errorcode.ER_BAD_DB_ERROR:
-            createDatabase(cursor)
-            print("Database {} created".format(database))
-            enterBudgetDB()
-        else:
-            print(err)
-            cursor.close()
+    def createDatabase(self):
+        try:
+            self.cursor.execute(
+            "CREATE DATABASE {} DEFAULT CHARACTER SET 'utf8'".format(self.database))
+            self.cursor.fetchall()
+            print("Database {} created".format(self.database))
+            return self.cursor
+        except mysql.connector.Error as err:
+            print("Failed creating database {}".format(self.database))
+            return None
 
-def getCursorInsideDB():
-    cnx = getConnectionToMySQL()
-    cursor = cnx.cursor()
-    curs = enterBudgetDB(cursor)
-    return curs
-    
+
 
 def dropTables():
     with DBConnection() as dbcnx:
         q = queue.Queue()
         for table in TABLE_LIST:
             q.put(table)
-            
+
         while (not q.empty()):
             tname = q.get()
             try:
                 dbcnx.curs.execute("DROP TABLE %s" % tname)
-                
+
                 # Forgeign key constraints may fail if dependent tables are
                 # not dropped first.  This can be remedied by adding the
                 # undroppable table table to the queue again, for iterative
@@ -155,9 +145,9 @@ def dropTables():
             except mysql.connector.Error as err:
                 print(err)
                 q.put(tname)
-                
+
         return True
-    
+
 
 
 def createTables():
@@ -165,8 +155,8 @@ def createTables():
 
         # used to show potential errors encountered
         #cursor.execute("SHOW ENGINE INNODB STATUS")
-        #print(cursor.fetchall())    
-        
+        #print(cursor.fetchall())
+
         #create the tables for the transaction logging
         dbcnx.curs.execute("CREATE TABLE domain (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
         dbcnx.curs.execute("CREATE TABLE category (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
@@ -174,7 +164,7 @@ def createTables():
         dbcnx.curs.execute("CREATE TABLE investment (id mediumint(5) unsigned AUTO_INCREMENT not null primary key, type mediumint(5) unsigned not null, amount DECIMAL(7,2) not null, FOREIGN KEY(type) REFERENCES type(id) ON DELETE CASCADE ON UPDATE CASCADE)")
         dbcnx.curs.execute("CREATE TABLE expenditure (id mediumint(5) unsigned AUTO_INCREMENT primary key, date DATE not null, account VARCHAR(10) NOT NULL)")
         dbcnx.curs.execute("CREATE TABLE transaction (id mediumint(5) unsigned AUTO_INCREMENT primary key, expenditure mediumint(5) unsigned NOT NULL, investment mediumint(5) unsigned NOT NULL, FOREIGN KEY(expenditure) REFERENCES expenditure(id) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY(investment) REFERENCES investment(id) ON DELETE CASCADE ON UPDATE CASCADE)")
-     
+
         #create the tables for mapping Transaction Description Names to categories and percentages
         dbcnx.curs.execute("CREATE TABLE description (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
         dbcnx.curs.execute("CREATE TABLE descs_to_ignore (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
@@ -191,21 +181,21 @@ def addNameElementToTable(table, name):
         except mysql.connector.Error as err:
             print(err)
             return False
-        
-        
+
+
 def addToDomain(name):
     return addNameElementToTable("domain", name)
 
 def addToCategory(name):
     return addNameElementToTable("category", name)
-    
+
 def addToIgnore(name):
     return addNameElementToTable("descs_to_ignore", name)
-    
+
 def addToDescription(name):
     return addNameElementToTable("description", name)
 
-    
+
 def elementIsInTable(table, field, element):
     with DBConnection() as dbcnx:
         dbcnx.curs.execute("SELECT * FROM %s WHERE %s = '%s'" % (table, field, element))
@@ -263,12 +253,12 @@ def formatDescriptionForMYSQL(description):
     for name in description:
         formatted += name.strip('\'"').replace("'","").replace('"','') + " "
     return formatted.strip()
-   
+
 
 def isInDescTable(desc):
     return elementIsInTable("description", "name", desc)
 
-    
+
 def getAllElements(table):
     with DBConnection() as dbcnx:
         dbcnx.curs.execute("SELECT * FROM %s" % table)
@@ -277,7 +267,7 @@ def getAllElements(table):
 
 def getPercentage(desc_one, domain, category, maximumPercentageAssignable):
     percentage = input("\nWhat percentage of a %s purchase is categorized as %s %s?  " % (desc_one, domain, category))
-    
+
     try:
         percentage = int(percentage)
     except:
@@ -294,7 +284,7 @@ def getPercentage(desc_one, domain, category, maximumPercentageAssignable):
 '''
     Given some descriptions, the user dictates what percentage of it should
     be allocated to which combination of domains and categories.
-    
+
     This function returns a typeID (which is an int representation of a combination of
     category and domain) and percentage of assignment that the descriptions
     should be assigned to.
@@ -313,11 +303,11 @@ def mapDescriptionToTypeID(descriptions, maximumPercentageAssignable):
 
     assignmentPercentage = getPercentage(descriptions, domain, category, maximumPercentageAssignable)
 
-        
+
     #create type if not exists
     typeID = getTypeID(category, domain)
     return typeID, assignmentPercentage
-    
+
 '''
     Somehow this is returning correct typeID's but they aren't being inserted
     into the DB>  TypeID is incrementing properly.  THIS IS NEXT
@@ -343,7 +333,7 @@ def chooseDomain(descriptions):
 
 def chooseCategory(descriptions):
     return makeSelection("category", descriptions)
-    
+
 def showCharIndexes(wholeDesc):
     indexes = ""
     for i in range(len(wholeDesc)):
@@ -365,7 +355,7 @@ def getShortenedVersionForTable(wholeDesc, table):
         startInd = 0
     else:
         startInd = int(startInd)
-    
+
     endInd = input("Enter the inclusive ending index for the range of characters:  ")
     if endInd == "":
         endInd = len(wholeDesc) + 1
@@ -398,7 +388,7 @@ def makeSelection(tableName, description):
         else:
             print("NOT added to ignore table, let's do this again...\n")
             makeSelection(tableName, description)
-        
+
 
     if selection in dic.keys():
         return dic[selection]
@@ -431,7 +421,7 @@ def getExpenditureID(date, account):
             addToExpenditure(date, account)
             return getExpenditureID(date, account)
         return expendID[0][0]
-    
+
 def getInvestmentID(typeID, amount):
     with DBConnection() as dbcnx:
         dbcnx.curs.execute("SELECT id FROM investment where type = '%s' and amount = '%s'" % (typeID, amount))
@@ -472,12 +462,10 @@ def reformatDate(date):
     if len(month) < 2:
         month = "0" + month
     dout += month + "-"
-    
+
     day = d[1]
     if len(day) < 2:
         day = "0" + day
     dout += day
-    
+
     return dout
-    
-    
