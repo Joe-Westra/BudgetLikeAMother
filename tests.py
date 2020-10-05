@@ -110,47 +110,47 @@ class Test_dbconnector(unittest.TestCase):
 
 
 
-    # def test_addNameElementToTable(self):
-    #     conn = getConnectionToMySQL()
-    #     curs = getCursorFromConnection(conn)
-    #     cursor = enterBudgetDB(curs)
-    #     table = "domain"
-    #     name = "test"
-    #     self.assertTrue(addNameElementToTable(table, name))
-    # 
-    # 
-    #     cursor.execute("SELECT * FROM %s WHERE name = '%s'" % (table, name))
-    #     tables = cursor.fetchall()
-    #     print(tables)
-    #     self.assertFalse(tables == [])
-    # 
-    #     #clean up
-    #     cursor.execute("DELETE FROM %s WHERE name = '%s'" % (table, name))
-    #     conn.close()
-    #     curs.close()
-    #     cursor.close()
-    # 
-    # 
-    # def test_isInDescOneTable(self):
-    #     conn = getConnectionToMySQL()
-    #     curs = getCursorFromConnection(conn)
-    #     cursor = enterBudgetDB(curs)
-    # 
-    #     # test where element does not exist
-    #     desc = "some_made_up_description"
-    #     self.assertFalse(isInDescOneTable(cursor, desc))
-    # 
-    #     table = "description_one"
-    #     name = "test test"
-    # 
-    #     # test where element does exist
-    #     addNameElementToTable(cursor, table, name)
-    #     self.assertTrue(isInDescOneTable(cursor, name))
+    def test_addNameElementToTable(self):
+        '''
+            Tests the more flexible version of the above method called.
+        '''
+        with DBConnection() as dbcnx:
+            table = "domain"
+            name = "test"
+            # self.assertTrue(addNameElementToTable(table, name))
+            try:
+                addNameElementToTable(table, name)
+            except mysql.connector.Error as err:
+                print("Is {} already entered in {} table?".format(name, test))
+                print(err)
+            
+            dbcnx.cursor.execute("SELECT * FROM %s WHERE name = '%s'" % (table, name))
+            instances = dbcnx.cursor.fetchall()
+            print(instances)
+            self.assertFalse(instances == [])
+        
+            #clean up
+            dbcnx.cursor.execute("DELETE FROM %s WHERE name = '%s'" % (table, name))
+        
 
+    
+    def test_isInDescTable(self):
+        with DBConnection() as dbcnx:
+            # test where element does not exist
+            desc = "some_made_up_description"
+            self.assertFalse(elementIsInDescriptionTable(desc))
+        
+            table = "description"
+            name = "test test"
+        
+            # test where element does exist
+            addNameElementToTable(table, name)
+            self.assertTrue(elementIsInDescriptionTable(name))
 
-    # curs.close()
-    # cursindb.close()
-    # conn.close()
+            #clean up
+            dbcnx.cursor.execute("DELETE FROM %s WHERE name = '%s'" % (table, name))
+        
+
 
 if __name__ == '__main__':
     unittest.main()
