@@ -27,8 +27,13 @@
 
 '''
 TODO:
-    -refactor tests to accomodate the new DBConnection class.
+    -Display summary of investments, etc.
+    -Health check for data base?  Determine if all the tables are present
 
+    -Modify this app for multiple users:
+        DATABASE:
+            -change the main database name (BUDGET) to the logged in username
+            -modify structure so that the shorthand descriptions can be shared between users
 '''
 
 import mysql.connector
@@ -37,7 +42,7 @@ import errno
 import os
 from pathlib import Path
 
-TABLE_LIST = ['assignment','category','description','domain','investment','transaction','type', 'expenditure', 'descs_to_ignore']
+TABLE_LIST = ['assignment', 'category', 'description', 'domain', 'investment', 'transaction', 'type', 'expenditure', 'descs_to_ignore']
 curs = ""
 
 
@@ -47,7 +52,6 @@ class DBConnection:
 
     This class replaces the need to create multiple DB connections within
     separate methods.
-
     """
 
     # Dict to hold DB login credentials
@@ -83,7 +87,7 @@ class DBConnection:
             print(err)
             
             if err.errno == 1049:
-                print("this is being called")
+                print("Database does not exist, attempting to create and enter it now.")
                 self.createDatabase()
                 return self.enterBudgetDB()
             else:
@@ -154,8 +158,8 @@ def createTables():
     with DBConnection() as dbcnx:
 
         # used to show potential errors encountered
-        #cursor.execute("SHOW ENGINE INNODB STATUS")
-        #print(cursor.fetchall())
+        #dbcnx.curs.execute("SHOW ENGINE INNODB STATUS")
+        #print(dbcnx.curs.fetchall())
 
         #create the tables for the transaction logging
         dbcnx.curs.execute("CREATE TABLE domain (name VARCHAR(255) UNIQUE NOT NULL PRIMARY KEY)")
@@ -245,7 +249,7 @@ def getShortHandVersionOfDesc(fullDesc):
     if shortenedVersion:
         return shortenedVersion
     else:
-        return getShortenedVersionForTable(fullDesc, "description")
+        return getShortenedVersionForTable(fullDesc)
 
 
 def formatDescriptionForMYSQL(description):
@@ -281,15 +285,16 @@ def getPercentage(desc_one, domain, category, maximumPercentageAssignable):
     return percentage
 
 
-'''
+
+def mapDescriptionToTypeID(descriptions, maximumPercentageAssignable):
+    '''
     Given some descriptions, the user dictates what percentage of it should
     be allocated to which combination of domains and categories.
 
     This function returns a typeID (which is an int representation of a combination of
     category and domain) and percentage of assignment that the descriptions
     should be assigned to.
-'''
-def mapDescriptionToTypeID(descriptions, maximumPercentageAssignable):
+    '''
     print("There is %i percent left to assign to this categorization" % maximumPercentageAssignable)
     category = chooseCategory(descriptions)
     print(category)
@@ -307,24 +312,21 @@ def mapDescriptionToTypeID(descriptions, maximumPercentageAssignable):
     #create type if not exists
     typeID = getTypeID(category, domain)
     return typeID, assignmentPercentage
-
-'''
-    Somehow this is returning correct typeID's but they aren't being inserted
-    into the DB>  TypeID is incrementing properly.  THIS IS NEXT
-'''
+    
+    
 def getTypeID(category, domain):
     with DBConnection() as dbcnx:
         dbcnx.curs.execute("SELECT id FROM type where domain = '%s' and category = '%s'" % (domain, category))
         typeid = dbcnx.curs.fetchall()
-        print("first pass for typeid yields: {}".format(typeid))
+        # print("first pass for typeid yields: {}".format(typeid))
         if (not typeid):
-            print("no typeid found, so attempting insert")
+            # print("no typeid found, so attempting insert")
             dbcnx.curs.execute("insert into type (domain, category) values ('%s', '%s')" % (domain, category))
             dbcnx.cnx.commit()
             dbcnx.curs.execute("SELECT id FROM type where domain = '%s' and category = '%s'" % (domain, category))
             typeid = dbcnx.curs.fetchall()
         typeid = typeid[0][0]
-        print("returning typeid {}".format(typeid))
+        # print("returning typeid {}".format(typeid))
         return typeid
 
 def chooseDomain(descriptions):
@@ -348,20 +350,36 @@ def showCharIndexes(wholeDesc):
 
 
 
-def getShortenedVersionForTable(wholeDesc, table):
+def getShortenedVersionForTable(wholeDesc):
+    '''
+        Prompts the user to trim the name of a vendor in order to allow
+        other vendors with similar names to be grouped (ie. 'laudrolunge'
+        and 'victoria laundrymat') by defining the bounds of the name (in this case 'laundr') 
+    '''
     showCharIndexes(wholeDesc)
-    startInd = input("Enter the starting index for the range of characters to add to the {} table.\n Leave blank for 0:  ".format(table))
+    #startInd = input("Enter the starting index for the range of characters to add to the {} table.\n Leave blank for 0:  ".format(table))
+    startInd = input("Enter the starting index for the range of characters for the trimmed name.\n Leave blank for 0:  ")
+    
+    # Parse user input
     if startInd == "":
         startInd = 0
     else:
-        startInd = int(startInd)
+        try:
+            startInd = int(startInd)
+        except:
+            print("\n\n\n\nIllegal number format; prompting again!\n")
+            return getShortenedVersionForTable(wholeDesc)
 
     endInd = input("Enter the inclusive ending index for the range of characters:  ")
     if endInd == "":
         endInd = len(wholeDesc) + 1
     else:
-        endInd = int(endInd) + 1
-    print(wholeDesc[startInd:endInd])
+        try:
+            endInd = int(endInd) + 1
+        except:
+            print("\n\n\n\nIllegal number format; prompting again!\n")
+            return getShortenedVersionForTable(wholeDesc)
+    # print(wholeDesc[startInd:endInd])
     return wholeDesc[startInd:endInd]
 
 def makeSelection(tableName, description):
@@ -377,7 +395,7 @@ def makeSelection(tableName, description):
     print(selection)
     if selection == "ignore":
         # Whole name or just a subset?
-        #nameToIgnore = getShortenedVersionForTable(description, "ignore")
+        #nameToIgnore = getShortenedVersionForTable(description)
         # This should be a shortened version already....
         print("Are you sure you want to ignore all future instances of '%s'?" % description)#nameToIgnore)
         confirmation = input("y/n: ")
@@ -469,3 +487,51 @@ def reformatDate(date):
     dout += day
 
     return dout
+
+
+def returnAllElementsInTable(table):
+    '''
+        fetches all elements from a table and returns
+        as a list for further processing.
+    '''
+    with DBConnection() as dbcnx:
+        try:
+            dbcnx.cursor.execute("SELECT * FROM {}".format(table))
+            results = dbcnx.cursor.fetchall()
+            return results
+        except mysql.connector.Error as err:
+            print("Database error!")
+            print(err)
+            if err.errno == 1146:
+                print("Table does not exist!")
+                return None
+
+
+def getInvestmentSummary():
+    '''
+        Returns a list summarizing the totals spend within each type of investment.
+
+        This is the full MySQL query:
+        select t.category as Category, t.domain as Domain, sum(i.amount) as totalSpent from type t, investment i where t.id = i.type group by i.type;
+    '''
+    with DBConnection() as dbcnx:
+        try:
+            totalLabel = "totalSpent"
+            criteria = "t.category AS Category, t.domain AS Domain, SUM(i.amount) AS " + totalLabel
+            tables = "type t, investment i"
+            clause = "t.id = i.type"
+            grouping = "i.type"
+            ordering = totalLabel + " DESC"
+            queryString = "SELECT {} FROM {} WHERE {} GROUP BY {} ORDER BY {}".format(
+                criteria, tables, clause, grouping, ordering
+            )
+            dbcnx.cursor.execute(queryString)
+            results = dbcnx.cursor.fetchall()
+            return results
+        except mysql.connector.Error as err:
+            print("Database error!")
+            print(err)
+            return None
+            # if err.errno == 1146:
+            #     print("Table does not exist!")
+            #     return None    

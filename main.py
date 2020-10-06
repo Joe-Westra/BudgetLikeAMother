@@ -47,7 +47,8 @@ dbcnx = db.DBConnection()
 #db.dropTables()
 #db.createTables()
 
-f = open(Path.cwd() / 'reports' / '20200518_allExpenditures.csv', "r")
+# f = open(Path.cwd() / 'reports' / '20200518_allExpenditures.csv', "r")
+f = open(Path.cwd() / 'reports' / 'shortReport.csv', "r")
 
 skippedFirstLine = False
 
@@ -133,4 +134,8 @@ for line in f:
             #add transaction
             db.addToTransaction(expendID, investID)
 
-print("Done!")
+
+
+print("Done Importing expenses, now showing results of expenses!")
+totals = db.getInvestmentSummary()
+print(totals)

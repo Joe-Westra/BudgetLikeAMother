@@ -29,11 +29,7 @@ from dbconnector import *
 
 class Test_dbconnector(unittest.TestCase):
 
-
-    # conn = getConnectionToMySQL()
-    # curs = getCursorFromConnection(conn)
-    # cursindb = enterBudgetDB(curs)
-
+    sqlTableList = ['assignment','category','description','domain','investment','transaction','type', 'expenditure', 'descs_to_ignore']
 
     def test_connectToMySQL(self):
         with DBConnection() as dbcnx:
@@ -82,9 +78,8 @@ class Test_dbconnector(unittest.TestCase):
                 print(err)
             dbcnx.cursor.execute("SHOW TABLES")
             tables = dbcnx.cursor.fetchall()
-            sqlTableList = ['assignment','category','description','domain','investment','transaction','type', 'expenditure', 'descs_to_ignore']
             for name in tables:
-                self.assertTrue(name[0] in sqlTableList)
+                self.assertTrue(name[0] in self.sqlTableList)
     
 
     def test_addToDomain(self):
@@ -149,7 +144,38 @@ class Test_dbconnector(unittest.TestCase):
 
             #clean up
             dbcnx.cursor.execute("DELETE FROM %s WHERE name = '%s'" % (table, name))
-        
+
+    def test_returnAllElementsInTable(self):
+        '''
+            Selects all elements in a table and returns an array for further processing.
+            The assumption is that a list will always be returned, even for an empty table.
+        '''
+        with DBConnection() as dbcnx:
+            testTable = "investment"
+            results = returnAllElementsInTable(testTable)
+            self.assertTrue(testTable in self.sqlTableList)
+            self.assertIsInstance(results, list)
+
+            # Test bad query
+            badTable = "nonexistent"
+            results = returnAllElementsInTable(badTable)
+            self.assertFalse(badTable in self.sqlTableList)
+            self.assertIsNone(results)
+    
+
+    def test_getInvestmentSummary(self):
+        '''
+            Returns a list summarizing the totals spend within each type of investment.
+        '''
+        with DBConnection() as dbcnx:
+            results = getInvestmentSummary()
+            self.assertIsInstance(results, list)
+
+            # Test bad query
+            # badTable = "nonexistent"
+            # results = returnAllElementsInTable(badTable)
+            # self.assertFalse(badTable in self.sqlTableList)
+            # self.assertIsNone(results)        
 
 
 if __name__ == '__main__':
